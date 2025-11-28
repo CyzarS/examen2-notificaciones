@@ -24,12 +24,20 @@ ses_client = None
 s3_client = None
 cloudwatch = None
 
-try:
-    ses_client = boto3.client('ses', region_name=AWS_REGION)
-    s3_client = boto3.client('s3', region_name=AWS_REGION)
-    cloudwatch = boto3.client('cloudwatch', region_name=AWS_REGION)
-except Exception as e:
-    logger.error(f"Error initializing AWS clients: {e}")
+# Inicializar clientes AWS solo si detectamos credenciales o perfil
+aws_key = os.getenv("AWS_ACCESS_KEY_ID")
+aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
+aws_profile = os.getenv("AWS_PROFILE")
+
+if aws_key and aws_secret or aws_profile:
+    try:
+        ses_client = boto3.client('ses', region_name=AWS_REGION)
+        s3_client = boto3.client('s3', region_name=AWS_REGION)
+        cloudwatch = boto3.client('cloudwatch', region_name=AWS_REGION)
+    except Exception as e:
+        logger.error(f"Error initializing AWS clients: {e}")
+else:
+    logger.info("No AWS credentials found in environment; AWS clients disabled for local testing.")
 
 
 def put_metric(metric_name: str, value: float, unit: str = 'Count', dimensions: list = None):
