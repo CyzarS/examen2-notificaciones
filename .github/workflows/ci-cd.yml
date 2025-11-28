@@ -83,6 +83,25 @@ jobs:
           ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
           IMAGE_TAG: ${{ github.sha }}
         run: |
+          # Delete existing function if it's Zip package type and recreate as Image type
+          CURRENT_PACKAGE_TYPE=$(aws lambda get-function --function-name $LAMBDA_FUNCTION_NAME --region $AWS_REGION --query 'Configuration.PackageType' --output text 2>/dev/null || echo "")
+          
+          if [ "$CURRENT_PACKAGE_TYPE" = "Zip" ]; then
+            echo "Converting Lambda from Zip to Image package type..."
+            aws lambda delete-function --function-name $LAMBDA_FUNCTION_NAME --region $AWS_REGION || true
+            sleep 5
+          fi
+          
+          # Create or update with Image package type  
+          aws lambda create-function \
+            --function-name $LAMBDA_FUNCTION_NAME \
+            --role $(aws iam list-roles --region $AWS_REGION --query "Roles[?contains(RoleName, 'LambdaExecutionRole')].Arn" --output text | head -1) \
+            --code ImageUri=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --package-type Image \
+            --timeout 30 \
+            --memory-size 256 \
+            --region $AWS_REGION 2>/dev/null || \
           aws lambda update-function-code \
             --function-name $LAMBDA_FUNCTION_NAME \
-            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            --image-uri $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --region $AWS_REGION
